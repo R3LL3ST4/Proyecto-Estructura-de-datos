@@ -70,25 +70,6 @@ struct Sala {
     struct ArbolTitulos titulos;
 };
 
-struct Tienda {
-    int cantSalas;
-    int capacidadSalas;
-    struct Sala** salas;
-    int cantidadClientes;
-    struct NodoCliente** clientes;
-    int aforoTienda;
-    int clientesDentro;
-    int clientesIngresadosHoy;
-    int pasesVendidos;
-    int pasesUtilizadosDia;
-    int gananciaPases;
-    int gananciaHoy;
-    int siguienteIdCliente;
-    int siguienteIdPase;
-    int siguienteIdEvento;
-    struct Bitacora bitacora; /*registro de eventos*/
-};
-
 struct Evento { /*en cada evento se aplican los ID correspondientes y el resto en = 0*/
     int IDevento;
     char* tipo;   /*ingreso, salida, pase anulado, título agotado, título descatalogado*/
@@ -106,6 +87,25 @@ struct Bitacora {
     struct NodoEvento* primero;
     struct NodoEvento* ultimo;
     int cantidad;
+};
+
+struct Tienda {
+    int cantSalas;
+    int capacidadSalas;
+    struct Sala** salas;
+    int cantidadClientes;
+    struct NodoCliente** clientes;
+    int aforoTienda;
+    int clientesDentro;
+    int clientesIngresadosHoy;
+    int pasesVendidos;
+    int pasesUtilizadosDia;
+    int gananciaPases;
+    int gananciaHoy;
+    int siguienteIdCliente;
+    int siguienteIdPase;
+    int siguienteIdEvento;
+    struct Bitacora bitacora; /*registro de eventos*/
 };
 
 #endif
