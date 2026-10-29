@@ -1,0 +1,74 @@
+/* Recorre el ABB inorden y guarda en "*mejor" el titulo con mas solicitudes del dia */
+void buscarMasSolicitado(struct NodoTitulo *nodo, struct Titulo **mejor)
+{
+    if (nodo == NULL) return;
+
+    buscarMasSolicitado(nodo->izquierdo, mejor);
+
+    if (*mejor == NULL || nodo->titulo.solicitudesDia > (*mejor)->solicitudesDia)
+    {
+        *mejor = &nodo->titulo;
+    }
+
+    buscarMasSolicitado(nodo->derecho, mejor);
+}
+
+/* Muestra el titulo mas solicitado del dia, buscando en cada sala de la tienda.
+   Retorna 1 si lo mostro, 0 si no hay titulos */
+int mostrarTituloMasSolicitado(struct Tienda *tienda)
+{
+    struct Titulo *mejor = NULL;
+    int i;
+
+    if (tienda == NULL) return 0;
+
+    for (i = 0; i < tienda->cantSalas; i++)
+    {
+        buscarMasSolicitado(tienda->salas[i]->titulos.raiz, &mejor);
+    }
+
+    if(mejor == NULL || mejor->solicitudesDia == 0)
+    {
+        return 0;
+    }
+
+    printf("[%d] %s - %d solicitudes\n", mejor->IDtitulo, mejor->nombre,
+           mejor->solicitudesDia);
+
+    return 1;
+}
+
+/* Imprime los titulos agotados de un ABB inorden. Retorna cuantos hay */
+int mostrarAgotadosArbol(struct NodoTitulo *nodo) {
+    int total;
+
+    if (nodo == NULL) {
+        return 0;
+    }
+
+    total = mostrarAgotadosArbol(nodo->izquierdo);
+
+    if (nodo->titulo.estado != NULL && strcmp(nodo->titulo.estado, "agotado") == 0)
+    {
+        printf("[%d] %s\n", nodo->titulo.IDtitulo, nodo->titulo.nombre);
+        total++;
+    }
+
+    return total + mostrarAgotadosArbol(nodo->derecho);
+}
+
+/* Muestra los titulos agotados de toda la tienda. Retorna cuantos hay */
+int mostrarTitulosAgotados(struct Tienda *tienda)
+{
+    int total = 0;
+    int i;
+
+    if (tienda == NULL) return 0;
+
+    for (i = 0; i < tienda->cantSalas; i++)
+    {
+        total += mostrarAgotadosArbol(tienda->salas[i]->titulos.raiz);
+    }
+
+    return total;
+}
