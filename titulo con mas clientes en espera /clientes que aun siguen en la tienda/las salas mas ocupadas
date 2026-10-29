@@ -1,0 +1,109 @@
+/* Recorre el ABB inorden y guarda en "*mejor" el titulo con mas clientes en su lista de espera */
+void buscarMayorEspera(struct NodoTitulo *nodo, struct Titulo **mejor)
+{
+    if (nodo == NULL) return;
+
+    buscarMayorEspera(nodo->izquierdo, mejor);
+
+    if (*mejor == NULL || nodo->titulo.espera.cantidad > (*mejor)->espera.cantidad)
+    {
+        *mejor = &nodo->titulo;
+    }
+
+    buscarMayorEspera(nodo->derecho, mejor);
+}
+
+/* Muestra el titulo con mas clientes en lista de espera, buscando en cada sala de la tienda.
+   Retorna 1 si lo mostro, 0 si no hay titulos o ninguno tiene clientes esperando */
+int mostrarTituloMayorEspera(struct Tienda *tienda)
+{
+    struct Titulo *mejor = NULL;
+    int i;
+
+    if (tienda == NULL) return 0;
+
+    for (i = 0; i < tienda->cantSalas; i++)
+    {
+        buscarMayorEspera(tienda->salas[i]->titulos.raiz, &mejor);
+    }
+
+    if (mejor == NULL || mejor->espera.cantidad == 0)
+    {
+        return 0;
+    }
+
+    printf("[%d] %s - %d clientes en espera\n", mejor->IDtitulo, mejor->nombre,
+           mejor->espera.cantidad);
+
+    return 1;
+}
+
+/* Muestra los clientes que siguen dentro de la tienda, recorriendo todas las
+   posiciones del arreglo de clientes y la lista de cada una.
+   Retorna cuantos clientes hay dentro */
+int mostrarClientesDentro(struct Tienda *tienda)
+{
+    struct NodoCliente *actual;
+    int total = 0;
+    int i;
+
+    if (tienda == NULL) return 0;
+
+    for (i = 0; i < tienda->cantidadClientes; i++)
+    {
+        actual = tienda->clientes[i];
+
+        while (actual != NULL)
+        {
+            if (actual->cliente->dentroTienda)
+            {
+                printf("[%d] %s\n", actual->cliente->IDcliente, actual->cliente->nombre);
+                total++;
+            }
+            actual = actual->sig;
+        }
+    }
+
+    return total;
+}
+
+/* Muestra la o las salas mas ocupadas, comparando los clientes que hay dentro
+   con el aforo maximo de cada sala (porcentaje de ocupacion).
+   Si varias salas tienen la misma ocupacion maxima, se muestran todas.
+   Retorna cuantas salas mostro, 0 si no hay salas o todas estan vacias */
+int mostrarSalasMasOcupadas(struct Tienda *tienda)
+{
+    struct Sala *mejor = NULL;
+    struct Sala *sala;
+    int total = 0;
+    int i;
+
+    if (tienda == NULL) return 0;
+
+    /* buscar cual es la mayor ocupacion de salas */
+    for (i = 0; i < tienda->cantSalas; i++)
+    {
+        sala = tienda->salas[i];
+
+        if (sala->aforoMaximo > 0 && (mejor == NULL || sala->clientesDentro * mejor->aforoMaximo > mejor->clientesDentro * sala->aforoMaximo))
+        {
+            mejor = sala;
+        }
+    }
+
+    if (mejor == NULL || mejor->clientesDentro == 0) return 0;
+
+    /* Luego muestra todas las salas que tienen esa misma ocupacion */
+    for (i = 0; i < tienda->cantSalas; i++)
+    {
+        sala = tienda->salas[i];
+
+        if (sala->aforoMaximo > 0 && sala->clientesDentro * mejor->aforoMaximo == mejor->clientesDentro * sala->aforoMaximo)
+        {
+            printf("[%d] %s - %d/%d clientes\n", sala->IDsala, sala->nombre, sala->clientesDentro, sala->aforoMaximo);
+            total++;
+        }
+    }
+
+    return total;
+}
