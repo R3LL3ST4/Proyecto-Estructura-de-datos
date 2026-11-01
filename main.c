@@ -1,4 +1,4 @@
-#define _CRT_SECURE_NO_WARNINGS
+#define _CRT_SECURE_NO_WARNINGS  //solo en caso de que tire un error en visual studio a causa de extensiones
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
