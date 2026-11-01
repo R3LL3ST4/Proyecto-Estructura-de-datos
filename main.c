@@ -5,6 +5,7 @@
 
 int encolarCliente(struct ListaEspera *lista, struct Cliente *cliente);
 int clienteEnEspera(struct ListaEspera *lista, int IDcliente);
+struct Cliente *desencolarCliente(struct ListaEspera *lista);
 
 void inicializarListaEspera(struct ListaEspera *lista) {
     if (lista == NULL) {
@@ -92,6 +93,34 @@ int clienteEnEspera(struct ListaEspera *lista, int IDcliente) {
     }
     return 0;
 }
+
+/* Retira al primero de la cola */
+struct Cliente *desencolarCliente(struct ListaEspera *lista) {
+    struct NodoCliente *eliminado;
+    struct Cliente *cliente;
+
+    if(lista == NULL || lista->primero == NULL){
+        return NULL;
+    }
+
+    eliminado = lista->primero;
+    cliente = eliminado->cliente;
+
+    lista->primero = eliminado->sig;
+
+    if (lista->primero != NULL) {
+        lista->primero->ant = NULL;
+    } else {
+        lista->ultimo = NULL;
+    }
+
+    lista->cantidad--;
+
+    free(eliminado); /*no estoy seguro si es valido*/
+
+    return cliente;
+}
+
 
 
 int main(){
