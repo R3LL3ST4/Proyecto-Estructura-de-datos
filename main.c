@@ -1,10 +1,11 @@
 #define _CRT_SECURE_NO_WARNINGS  //solo en caso de que tire un error en visual studio a causa de extensiones
+#define MAX_SALAS 4
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
 #include "structs.h"
 
-#define MAX_SALAS 4
+
 /* ------------------------------------------------------------------ */
 /* PROTOTIPOS DE FUNCIONES                                            */
 /* ------------------------------------------------------------------ */
