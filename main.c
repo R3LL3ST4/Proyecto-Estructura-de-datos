@@ -4,7 +4,6 @@
 #include <stdlib.h>
 #include "structs.h"
 
-#define MAX_SALAS 4
 /* ------------------------------------------------------------------ */
 /* PROTOTIPOS DE FUNCIONES                                            */
 /* ------------------------------------------------------------------ */
@@ -36,6 +35,7 @@ int inicializarSalas(struct Tienda* tienda, int capacidad);
 struct Sala* buscarSala(struct Tienda* tienda, int IDsala);
 int crearSala(struct Tienda* tienda, int IDsala, char* nombre, char* tematica, char* horario, int aforoMaximo);
 void listarSalas(struct Tienda* tienda);
+int temaEnUso(struct Tienda* tienda, char* tematica);
 
 /* Mostrador, Títulos y Despachos */
 struct Sala* ubicarTitulo(struct Tienda* tienda, int IDtitulo);
@@ -48,7 +48,7 @@ void listarTitulosSala(struct Tienda* tienda, int IDsala);
 /* Clientes */
 int inicializarClientes(struct Tienda* tienda, int capacidad);
 struct Cliente* buscarCliente(struct Tienda* tienda, int IDcliente);
-int crearCliente(struct Tienda* tienda, char* nombre, int edad);
+int crearCliente(struct Tienda* tienda, char* nombre, int edad, int limite);
 int modificarCliente(struct Tienda* tienda, int IDcliente, char* nuevoNombre, int nuevaEdad);
 int eliminarCliente(struct Tienda* tienda, int IDcliente);
 void listarClientes(struct Tienda* tienda);
@@ -65,10 +65,21 @@ void listarBitacora(struct Tienda* tienda);
 void generarReporteCierre(struct Tienda* tienda);
 int estimarTiempoEsperaTitulo(struct Tienda* tienda, int IDtitulo, int* despachos, int* dias);
 
+/* Consultas */
+int valorTitulo(struct Titulo* titulo, int criterio);
+void buscarMayorTitulo(struct NodoTitulo* nodo, int criterio, struct Titulo** mejor);
+int mostrarTituloMayor(struct Tienda* tienda, int criterio);
+int listarAgotados(struct NodoTitulo* nodo);
+int mostrarTitulosAgotados(struct Tienda* tienda);
+int mostrarClientesDentro(struct Tienda* tienda);
+int mostrarSalasMasOcupadas(struct Tienda* tienda);
+void mostrarAforo(struct Tienda* tienda);
+
 /* ------------------------------------------------------------------ */
 /* IMPLEMENTACIÓN DE FUNCIONES                                        */
 /* ------------------------------------------------------------------ */
 
+/* Crea una copia en memoria dinamica de un texto */
 char* copiarTexto(char* origen) {
     char* copia;
     if (origen == NULL) return NULL;
@@ -77,6 +88,7 @@ char* copiarTexto(char* origen) {
     return copia;
 }
 
+/* Deja la tienda en cero y reserva los arreglos de salas y de clientes */
 int inicializarTienda(struct Tienda* tienda, int capSalas, int capClientes, int aforoTienda) {
     if (tienda == NULL) return 0;
     tienda->cantSalas = 0;
@@ -101,6 +113,7 @@ int inicializarTienda(struct Tienda* tienda, int capSalas, int capClientes, int 
     return 1;
 }
 
+/* Retorna 1 si el cliente tiene un pase activo */
 int validarPase(struct Cliente* cliente) {
     if (cliente == NULL) return 0;
     if (cliente->pase.estado != NULL && strcmp(cliente->pase.estado, "activo") == 0 && cliente->pase.IDpase > 0) {
@@ -109,6 +122,7 @@ int validarPase(struct Cliente* cliente) {
     return 0;
 }
 
+/* Entrega un pase nuevo al cliente segun el tipo elegido y suma la ganancia */
 int comprarPase(struct Tienda* tienda, struct Cliente* cliente, int tipoOpcion) {
     char* tipoPaseStr;
     int valorPase;
@@ -133,6 +147,7 @@ int comprarPase(struct Tienda* tienda, struct Cliente* cliente, int tipoOpcion) 
     return 1;
 }
 
+/* Anula el pase del cliente y registra el evento en la bitacora */
 int anularPaseCliente(struct Tienda* tienda, int IDcliente) {
     struct Cliente* c = buscarCliente(tienda, IDcliente);
     if (c == NULL || c->pase.IDpase == 0) return 0;
@@ -142,6 +157,7 @@ int anularPaseCliente(struct Tienda* tienda, int IDcliente) {
     return 1;
 }
 
+/* Muestra el pase de cada cliente y cuantos pases se usaron hoy */
 void listarPasesTienda(struct Tienda* tienda) {
     int i;
     if (tienda == NULL || tienda->cantidadClientes == 0) {
@@ -161,6 +177,7 @@ void listarPasesTienda(struct Tienda* tienda) {
     printf("\nPases utilizados hoy: %d\n===============================================================\n", tienda->pasesUtilizadosDia);
 }
 
+/* Deja una cola vacia */
 void inicializarListaEspera(struct ListaEspera* lista) {
     if (lista == NULL) return;
     lista->primero = NULL;
@@ -168,6 +185,7 @@ void inicializarListaEspera(struct ListaEspera* lista) {
     lista->cantidad = 0;
 }
 
+/* Retorna 1 si el cliente ya esta en la cola */
 int clienteEnEspera(struct ListaEspera* lista, int IDcliente) {
     struct NodoCliente* actual;
     if (lista == NULL) return 0;
@@ -179,6 +197,7 @@ int clienteEnEspera(struct ListaEspera* lista, int IDcliente) {
     return 0;
 }
 
+/* Agrega un cliente al final de la cola (0 si ya estaba o no hay memoria) */
 int encolarCliente(struct ListaEspera* lista, struct Cliente* cliente) {
     struct NodoCliente* nuevo;
     if (lista == NULL || cliente == NULL) return 0;
@@ -197,6 +216,7 @@ int encolarCliente(struct ListaEspera* lista, struct Cliente* cliente) {
     return 1;
 }
 
+/* Saca y retorna al primer cliente de la cola (NULL si esta vacia) */
 struct Cliente* desencolarCliente(struct ListaEspera* lista) {
     struct NodoCliente* eliminado;
     struct Cliente* cliente;
@@ -211,6 +231,7 @@ struct Cliente* desencolarCliente(struct ListaEspera* lista) {
     return cliente;
 }
 
+/* Busca un titulo por ID en el ABB */
 struct NodoTitulo* buscarNodoTitulo(struct NodoTitulo* raiz, int IDtitulo) {
     if (raiz == NULL) return NULL;
     if (IDtitulo == raiz->titulo.IDtitulo) return raiz;
@@ -218,6 +239,7 @@ struct NodoTitulo* buscarNodoTitulo(struct NodoTitulo* raiz, int IDtitulo) {
     return buscarNodoTitulo(raiz->derecho, IDtitulo);
 }
 
+/* Inserta un nodo en el ABB ordenado por ID (insertado queda en 1 si lo agrego) */
 struct NodoTitulo* insertarNodoTitulo(struct NodoTitulo* raiz, struct NodoTitulo* nuevo, int* insertado) {
     if (raiz == NULL) { *insertado = 1; return nuevo; }
     if (nuevo->titulo.IDtitulo < raiz->titulo.IDtitulo)
@@ -227,12 +249,14 @@ struct NodoTitulo* insertarNodoTitulo(struct NodoTitulo* raiz, struct NodoTitulo
     return raiz;
 }
 
+/* Quita el nodo menor de un subarbol y retorna la nueva raiz */
 struct NodoTitulo* quitarMinimo(struct NodoTitulo* raiz) {
     if (raiz->izquierdo == NULL) return raiz->derecho;
     raiz->izquierdo = quitarMinimo(raiz->izquierdo);
     return raiz;
 }
 
+/* Elimina un titulo del ABB por ID (eliminado queda en 1 si lo encontro) */
 struct NodoTitulo* eliminarNodoTitulo(struct NodoTitulo* raiz, int IDtitulo, int* eliminado) {
     struct NodoTitulo* sucesor;
     if (raiz == NULL) return NULL;
@@ -250,6 +274,7 @@ struct NodoTitulo* eliminarNodoTitulo(struct NodoTitulo* raiz, int IDtitulo, int
     return raiz;
 }
 
+/* Muestra los titulos del ABB ordenados por ID */
 void listarArbol(struct NodoTitulo* raiz) {
     if (raiz == NULL) return;
     listarArbol(raiz->izquierdo);
@@ -260,6 +285,7 @@ void listarArbol(struct NodoTitulo* raiz) {
     listarArbol(raiz->derecho);
 }
 
+/* Reserva el arreglo de punteros a salas con la capacidad indicada */
 int inicializarSalas(struct Tienda* tienda, int capacidad) {
     tienda->cantSalas = 0;
     tienda->capacidadSalas = 0;
@@ -271,6 +297,7 @@ int inicializarSalas(struct Tienda* tienda, int capacidad) {
     return 1;
 }
 
+/* Busca una sala por ID (NULL si no existe) */
 struct Sala* buscarSala(struct Tienda* tienda, int IDsala) {
     int i;
     if (tienda == NULL || tienda->salas == NULL) return NULL;
@@ -280,6 +307,7 @@ struct Sala* buscarSala(struct Tienda* tienda, int IDsala) {
     return NULL;
 }
 
+/* Crea una sala y la agrega al arreglo (0 si el ID existe, el aforo es invalido o no hay espacio) */
 int crearSala(struct Tienda* tienda, int IDsala, char* nombre, char* tematica, char* horario, int aforoMaximo) {
     struct Sala* sala;
     if (aforoMaximo <= 0 || tienda->cantSalas >= tienda->capacidadSalas) return 0;
@@ -302,6 +330,7 @@ int crearSala(struct Tienda* tienda, int IDsala, char* nombre, char* tematica, c
     return 1;
 }
 
+/* Muestra todas las salas con su ocupacion */
 void listarSalas(struct Tienda* tienda) {
     int i;
     if (tienda->cantSalas == 0) { printf("No hay salas registradas.\n"); return; }
@@ -312,6 +341,16 @@ void listarSalas(struct Tienda* tienda) {
     }
 }
 
+/* Retorna 1 si ya existe una sala con esa tematica */
+int temaEnUso(struct Tienda* tienda, char* tematica) {
+    int i;
+    for (i = 0; i < tienda->cantSalas; i++) {
+        if (strcmp(tienda->salas[i]->tematica, tematica) == 0) return 1;
+    }
+    return 0;
+}
+
+/* Retorna la sala donde esta un titulo (NULL si no existe) */
 struct Sala* ubicarTitulo(struct Tienda* tienda, int IDtitulo) {
     int i;
     if (tienda == NULL || tienda->salas == NULL) return NULL;
@@ -321,7 +360,8 @@ struct Sala* ubicarTitulo(struct Tienda* tienda, int IDtitulo) {
     return NULL;
 }
 
-/* Retorna: 1 ejemplar entregado, 2 cliente en lista de espera, 0 error,
+/* Atiende a un cliente en el mostrador: registra el titulo si es nuevo y lo entrega o lo deja en espera.
+   Retorna: 1 ejemplar entregado, 2 cliente en lista de espera, 0 error,
    -1 cliente inexistente o fuera de la tienda, -2 sala inexistente,
    -3 titulo descatalogado sin ejemplares, -4 edad insuficiente,
    -5 cliente no esta en esa sala, -6 titulo pertenece a otra sala,
@@ -401,6 +441,7 @@ int procesarEscaneoMostrador(struct Tienda* tienda, int IDcliente, int IDsala, i
     return 2;
 }
 
+/* Suma los ejemplares que llegan al titulo y atiende su cola en orden de llegada */
 int procesarLlegadaDespacho(struct Tienda* tienda, int IDtitulo, int cantidadLlegada) {
     struct Sala* sala = ubicarTitulo(tienda, IDtitulo);
     struct NodoTitulo* nodo;
@@ -428,6 +469,7 @@ int procesarLlegadaDespacho(struct Tienda* tienda, int IDtitulo, int cantidadLle
     return 1;
 }
 
+/* Marca un titulo como descatalogado y registra el evento */
 int descatalogarTitulo(struct Tienda* tienda, int IDtitulo) {
     struct Sala* sala = ubicarTitulo(tienda, IDtitulo);
     struct NodoTitulo* nodo;
@@ -441,6 +483,7 @@ int descatalogarTitulo(struct Tienda* tienda, int IDtitulo) {
     return 1;
 }
 
+/* Quita un titulo de su sala */
 int eliminarTitulo(struct Tienda* tienda, int IDtitulo) {
     struct Sala* sala = ubicarTitulo(tienda, IDtitulo);
     int eliminado = 0;
@@ -450,6 +493,7 @@ int eliminarTitulo(struct Tienda* tienda, int IDtitulo) {
     return eliminado;
 }
 
+/* Muestra los titulos de una sala */
 void listarTitulosSala(struct Tienda* tienda, int IDsala) {
     struct Sala* sala = buscarSala(tienda, IDsala);
     if (sala == NULL) { printf("Sala no existe.\n"); return; }
@@ -458,6 +502,7 @@ void listarTitulosSala(struct Tienda* tienda, int IDsala) {
     listarArbol(sala->titulos.raiz);
 }
 
+/* Reserva el arreglo de clientes con la capacidad indicada */
 int inicializarClientes(struct Tienda* tienda, int capacidad) {
     tienda->cantidadClientes = 0;
     tienda->clientes = NULL;
@@ -467,6 +512,7 @@ int inicializarClientes(struct Tienda* tienda, int capacidad) {
     return 1;
 }
 
+/* Busca un cliente por ID (NULL si no existe) */
 struct Cliente* buscarCliente(struct Tienda* tienda, int IDcliente) {
     int i;
     if (tienda == NULL || tienda->clientes == NULL) return NULL;
@@ -478,11 +524,12 @@ struct Cliente* buscarCliente(struct Tienda* tienda, int IDcliente) {
     return NULL;
 }
 
-int crearCliente(struct Tienda* tienda, char* nombre, int edad) {
+/* Registra un cliente nuevo; retorna su ID, o 0 si se llego al limite o los datos son invalidos */
+int crearCliente(struct Tienda* tienda, char* nombre, int edad, int limite) {
     struct Cliente* nuevoC;
     struct NodoCliente* nuevoN;
     if (tienda == NULL || nombre == NULL || edad < 0) return 0;
-    if (tienda->clientes == NULL) return 0;
+    if (tienda->clientes == NULL || tienda->cantidadClientes >= limite) return 0;
 
     nuevoC = (struct Cliente*)malloc(sizeof(struct Cliente));
     if (nuevoC == NULL) return 0;
@@ -508,6 +555,7 @@ int crearCliente(struct Tienda* tienda, char* nombre, int edad) {
     return nuevoC->IDcliente;
 }
 
+/* Cambia el nombre y/o la edad de un cliente (nombre NULL o edad negativa se ignoran) */
 int modificarCliente(struct Tienda* tienda, int IDcliente, char* nuevoNombre, int nuevaEdad) {
     struct Cliente* c = buscarCliente(tienda, IDcliente);
     if (c == NULL) return 0;
@@ -516,6 +564,7 @@ int modificarCliente(struct Tienda* tienda, int IDcliente, char* nuevoNombre, in
     return 1;
 }
 
+/* Elimina un cliente que no este dentro (1 ok, -1 esta dentro de la tienda, 0 no existe) */
 int eliminarCliente(struct Tienda* tienda, int IDcliente) {
     int i, pos = -1;
     for (i = 0; i < tienda->cantidadClientes; i++) {
@@ -533,6 +582,7 @@ int eliminarCliente(struct Tienda* tienda, int IDcliente) {
     return 1;
 }
 
+/* Muestra todos los clientes registrados */
 void listarClientes(struct Tienda* tienda) {
     int i;
     if (tienda == NULL || tienda->cantidadClientes == 0) { printf("No hay clientes.\n"); return; }
@@ -547,6 +597,7 @@ void listarClientes(struct Tienda* tienda) {
     printf("=====================================================\n");
 }
 
+/* Revisa aforos y pase, y registra el ingreso a la tienda y a la sala (1 ok, negativos = motivo del rechazo) */
 int ingresoAutomaticoCliente(struct Tienda* tienda, int IDcliente, int IDsalaDestino, int seleccionPase, int decisionCompra) {
     struct Cliente* cliente = buscarCliente(tienda, IDcliente);
     struct Sala* sala = buscarSala(tienda, IDsalaDestino);
@@ -576,6 +627,7 @@ int ingresoAutomaticoCliente(struct Tienda* tienda, int IDcliente, int IDsalaDes
     return 1;
 }
 
+/* Mueve a un cliente que esta dentro a otra sala si hay espacio (1 ok, -4 sala llena) */
 int cambiarSalaCliente(struct Tienda* tienda, int IDcliente, int IDsalaNueva) {
     struct Cliente* cliente = buscarCliente(tienda, IDcliente);
     struct Sala* nueva = buscarSala(tienda, IDsalaNueva);
@@ -592,6 +644,7 @@ int cambiarSalaCliente(struct Tienda* tienda, int IDcliente, int IDsalaNueva) {
     return 1;
 }
 
+/* Registra la salida del cliente de su sala y de la tienda */
 int salidaAutomaticaCliente(struct Tienda* tienda, int IDcliente) {
     struct Cliente* cliente = buscarCliente(tienda, IDcliente);
     struct Sala* sala;
@@ -609,6 +662,7 @@ int salidaAutomaticaCliente(struct Tienda* tienda, int IDcliente) {
     return 1;
 }
 
+/* Deja la bitacora vacia */
 void inicializarBitacora(struct Bitacora* bitacora) {
     if (bitacora == NULL) return;
     bitacora->primero = NULL;
@@ -616,6 +670,7 @@ void inicializarBitacora(struct Bitacora* bitacora) {
     bitacora->cantidad = 0;
 }
 
+/* Agrega un evento al final de la bitacora (lista simple con puntero al ultimo) */
 int registrarEvento(struct Tienda* tienda, char* tipoEvento, int IDcliente, int IDsala, int IDtitulo) {
     struct NodoEvento* nuevo = (struct NodoEvento*)malloc(sizeof(struct NodoEvento));
     if (nuevo == NULL) return 0;
@@ -638,6 +693,7 @@ int registrarEvento(struct Tienda* tienda, char* tipoEvento, int IDcliente, int 
     return 1;
 }
 
+/* Muestra todos los eventos de la bitacora en orden cronologico */
 void listarBitacora(struct Tienda* tienda) {
     struct NodoEvento* actual = tienda->bitacora.primero;
     if (actual == NULL) { printf("Bitácora vacía.\n"); return; }
@@ -650,6 +706,7 @@ void listarBitacora(struct Tienda* tienda) {
     printf("=============================================================\n");
 }
 
+/* Muestra el resumen del dia: contadores, ganancias y los titulos mas solicitados y con mas espera */
 void generarReporteCierre(struct Tienda* tienda) {
     printf("\n================ REPORTE DE CIERRE DIARIO ================\n");
     printf(" Clientes ingresados hoy     : %d\n", tienda->clientesIngresadosHoy);
@@ -659,9 +716,14 @@ void generarReporteCierre(struct Tienda* tienda) {
     printf(" Ganancia total por pases    : $%d\n", tienda->gananciaPases);
     printf(" Ganancia total del día      : $%d\n", tienda->gananciaHoy);
     printf(" Total eventos en bitácora   : %d\n", tienda->bitacora.cantidad);
+    printf(" Titulo mas solicitado       : ");
+    if (!mostrarTituloMayor(tienda, 1)) printf("ninguno\n");
+    printf(" Titulo con mas espera       : ");
+    if (!mostrarTituloMayor(tienda, 0)) printf("ninguno\n");
     printf("===========================================================\n");
 }
 
+/* Calcula despachos y dias de espera segun la cola del titulo (2 ok, 1 sin cola, -1 no existe, -2 sin datos de despacho) */
 int estimarTiempoEsperaTitulo(struct Tienda* tienda, int IDtitulo, int* despachos, int* dias) {
     struct Sala* sala = ubicarTitulo(tienda, IDtitulo);
     struct NodoTitulo* nodo;
@@ -678,30 +740,122 @@ int estimarTiempoEsperaTitulo(struct Tienda* tienda, int IDtitulo, int* despacho
 }
 
 /* ------------------------------------------------------------------ */
+/* CONSULTAS                                                          */
+/* ------------------------------------------------------------------ */
+
+/* Valor de un titulo segun el criterio: 0 = clientes en espera, 1 = solicitudes del dia */
+int valorTitulo(struct Titulo* titulo, int criterio) {
+    return criterio == 0 ? titulo->espera.cantidad : titulo->solicitudesDia;
+}
+
+/* Recorre el ABB y deja en *mejor el titulo con mayor valor segun el criterio */
+void buscarMayorTitulo(struct NodoTitulo* nodo, int criterio, struct Titulo** mejor) {
+    if (nodo == NULL) return;
+    buscarMayorTitulo(nodo->izquierdo, criterio, mejor);
+    if (*mejor == NULL || valorTitulo(&nodo->titulo, criterio) > valorTitulo(*mejor, criterio)) *mejor = &nodo->titulo;
+    buscarMayorTitulo(nodo->derecho, criterio, mejor);
+}
+
+/* Muestra el titulo con mayor valor de toda la tienda (retorna 0 si ninguno supera 0) */
+int mostrarTituloMayor(struct Tienda* tienda, int criterio) {
+    struct Titulo* mejor = NULL;
+    int i;
+
+    for (i = 0; i < tienda->cantSalas; i++) {
+        buscarMayorTitulo(tienda->salas[i]->titulos.raiz, criterio, &mejor);
+    }
+    if (mejor == NULL || valorTitulo(mejor, criterio) == 0) return 0;
+
+    printf("[%d] %s - %d %s\n", mejor->IDtitulo, mejor->nombre, valorTitulo(mejor, criterio),
+        criterio == 0 ? "clientes en espera" : "solicitudes");
+    return 1;
+}
+
+/* Lista los titulos agotados de un ABB y retorna cuantos son */
+int listarAgotados(struct NodoTitulo* nodo) {
+    int total;
+    if (nodo == NULL) return 0;
+    total = listarAgotados(nodo->izquierdo);
+    if (strcmp(nodo->titulo.estado, "agotado") == 0) {
+        printf("    [%d] %s\n", nodo->titulo.IDtitulo, nodo->titulo.nombre);
+        total++;
+    }
+    return total + listarAgotados(nodo->derecho);
+}
+
+/* Lista los titulos agotados de todas las salas y retorna cuantos hay */
+int mostrarTitulosAgotados(struct Tienda* tienda) {
+    int i, total = 0;
+    for (i = 0; i < tienda->cantSalas; i++) {
+        total += listarAgotados(tienda->salas[i]->titulos.raiz);
+    }
+    return total;
+}
+
+/* Lista los clientes que siguen dentro de la tienda y retorna cuantos son */
+int mostrarClientesDentro(struct Tienda* tienda) {
+    int i, total = 0;
+    for (i = 0; i < tienda->cantidadClientes; i++) {
+        struct Cliente* c = tienda->clientes[i]->cliente;
+        if (c->dentroTienda) {
+            printf("[%d] %s - sala %d\n", c->IDcliente, c->nombre, c->salaActual);
+            total++;
+        }
+    }
+    return total;
+}
+
+/* Muestra la sala (o salas empatadas) con mayor porcentaje de ocupacion; retorna cuantas mostro (0 si todas estan vacias) */
+int mostrarSalasMasOcupadas(struct Tienda* tienda) {
+    struct Sala* mejor = NULL;
+    int i, total = 0;
+
+    for (i = 0; i < tienda->cantSalas; i++) {
+        struct Sala* s = tienda->salas[i];
+        if (mejor == NULL || s->clientesDentro * mejor->aforoMaximo > mejor->clientesDentro * s->aforoMaximo) mejor = s;
+    }
+    if (mejor == NULL || mejor->clientesDentro == 0) return 0;
+
+    for (i = 0; i < tienda->cantSalas; i++) {
+        struct Sala* s = tienda->salas[i];
+        if (s->clientesDentro * mejor->aforoMaximo == mejor->clientesDentro * s->aforoMaximo) {
+            printf("[%d] %s - %d/%d clientes\n", s->IDsala, s->nombre, s->clientesDentro, s->aforoMaximo);
+            total++;
+        }
+    }
+    return total;
+}
+
+/* Muestra la ocupacion de la tienda y de cada sala, indicando cuales llegaron a su aforo maximo */
+void mostrarAforo(struct Tienda* tienda) {
+    struct Sala* s;
+    int i;
+
+    printf("Tienda: %d/%d%s\n", tienda->clientesDentro, tienda->aforoTienda,
+        tienda->clientesDentro >= tienda->aforoTienda ? " (aforo alcanzado)" : "");
+    for (i = 0; i < tienda->cantSalas; i++) {
+        s = tienda->salas[i];
+        printf("Sala %d (%s): %d/%d%s\n", s->IDsala, s->nombre, s->clientesDentro, s->aforoMaximo,
+            s->clientesDentro >= s->aforoMaximo ? " (aforo alcanzado)" : "");
+    }
+}
+
+/* ------------------------------------------------------------------ */
 /* FUNCIÓN PRINCIPAL (MAIN COMPLETO ANSI C)                           */
 /* ------------------------------------------------------------------ */
 
 int main(void) {
     struct Tienda miTienda;
+    char* tematicas[] = { "Superheroes", "Manga/Anime", "Novela Grafica", "Infantil/Humor Grafico" };
+    int maxSalas = sizeof(tematicas) / sizeof(tematicas[0]); /* una sala por tematica */
+    int limiteClientes = 50;                                 /* maximo de clientes registrables */
     int opcion = 0, subOpcion = 0;
     int aforoTotalTienda, cantSalasConfig;
     int id, id2, edad, precio, stock, cantDesp, demoraDesp, clasif, aforoSala;
     char nombre[100], tipoPub[50];
     int res, selPase, decCompra, desp, dias, i, seleccionTematica, j, nuevoTitulo;
-
-    char* tematicasOficiales[MAX_SALAS];
-    int tematicaUsada[MAX_SALAS];
     struct Cliente* c;
     struct Cliente* cli;
-
-    tematicasOficiales[0] = "Superheroes";
-    tematicasOficiales[1] = "Manga/Anime";
-    tematicasOficiales[2] = "Novela Grafica";
-    tematicasOficiales[3] = "Infantil/Humor Grafico";
-
-    for (j = 0; j < MAX_SALAS; j++) {
-        tematicaUsada[j] = 0;
-    }
 
     printf("==================================================\n");
     printf("     SISTEMA DE GESTION - IBC-omics Inc.          \n");
@@ -714,33 +868,29 @@ int main(void) {
     } while (aforoTotalTienda <= 0);
 
     do {
-        printf("¿Cuántas salas posee la tienda? (Entre 1 y %d): ", MAX_SALAS);
+        printf("¿Cuántas salas posee la tienda? (Entre 1 y %d): ", maxSalas);
         scanf("%d", &cantSalasConfig);
-        if (cantSalasConfig <= 0 || cantSalasConfig > MAX_SALAS) printf("-> Error: Debe ser entre 1 y %d.\n", MAX_SALAS);
-    } while (cantSalasConfig <= 0 || cantSalasConfig > MAX_SALAS);
+        if (cantSalasConfig <= 0 || cantSalasConfig > maxSalas) printf("-> Error: Debe ser entre 1 y %d.\n", maxSalas);
+    } while (cantSalasConfig <= 0 || cantSalasConfig > maxSalas);
 
-    if (!inicializarTienda(&miTienda, cantSalasConfig, 50, aforoTotalTienda)) {
+    if (!inicializarTienda(&miTienda, cantSalasConfig, limiteClientes, aforoTotalTienda)) {
         printf("Error al inicializar la tienda.\n");
         return 1;
     }
 
     for (i = 0; i < cantSalasConfig; i++) {
-        char* nombreTematica;
         printf("\nConfigurando Sala %d de %d:\n", i + 1, cantSalasConfig);
         do {
             printf("  - ID de la Sala (entero mayor a 0): "); scanf("%d", &id);
             if (id <= 0 || buscarSala(&miTienda, id) != NULL) printf("-> Error: ID invalido o ya existente.\n");
         } while (id <= 0 || buscarSala(&miTienda, id) != NULL);
         printf("  - Seleccione la temática fija:\n");
-        for (j = 0; j < MAX_SALAS; j++) {
-            if (!tematicaUsada[j]) printf("    [%d] %s\n", j + 1, tematicasOficiales[j]);
+        for (j = 0; j < maxSalas; j++) {
+            if (!temaEnUso(&miTienda, tematicas[j])) printf("    [%d] %s\n", j + 1, tematicas[j]);
         }
         do {
             scanf("%d", &seleccionTematica);
-        } while (seleccionTematica < 1 || seleccionTematica > MAX_SALAS || tematicaUsada[seleccionTematica - 1]);
-
-        tematicaUsada[seleccionTematica - 1] = 1;
-        nombreTematica = tematicasOficiales[seleccionTematica - 1];
+        } while (seleccionTematica < 1 || seleccionTematica > maxSalas || temaEnUso(&miTienda, tematicas[seleccionTematica - 1]));
 
         do {
             printf("  - Aforo máximo personalizado para esta sala: ");
@@ -748,7 +898,7 @@ int main(void) {
             if (aforoSala <= 0) printf("-> Error: El aforo debe ser mayor a 0.\n");
         } while (aforoSala <= 0);
 
-        crearSala(&miTienda, id, nombreTematica, nombreTematica, "Lunes a Domingo", aforoSala);
+        crearSala(&miTienda, id, tematicas[seleccionTematica - 1], tematicas[seleccionTematica - 1], "Lunes a Domingo", aforoSala);
     }
 
     do {
@@ -759,7 +909,7 @@ int main(void) {
         printf("4. Control de Acceso y Salida de Tienda\n");
         printf("5. Gestion de Pases (Listar y Anular)\n");
         printf("6. Gestion de Títulos (Listar, Eliminar, Descatalogar, Despachos)\n");
-        printf("7. Bitacora y Reportes Analiticos (Cierre, Tiempos de Espera)\n");
+        printf("7. Bitacora y Reportes Analiticos (Cierre, Consultas, Tiempos de Espera)\n");
         printf("0. Salir\n");
         printf("Elija una opcion: ");
         scanf("%d", &opcion);
@@ -834,9 +984,9 @@ int main(void) {
                 if (subOpcion == 1) {
                     printf("Nombre: "); scanf(" %99[^\n]", nombre);
                     printf("Edad: "); scanf("%d", &edad);
-                    res = crearCliente(&miTienda, nombre, edad);
+                    res = crearCliente(&miTienda, nombre, edad, limiteClientes);
                     if (res > 0) printf("-> Cliente creado con ID: %d\n", res);
-                    else printf("-> No se pudo registrar el cliente (capacidad llena o edad invalida).\n");
+                    else printf("-> No se pudo registrar el cliente (limite alcanzado o edad invalida).\n");
                 }
                 else if (subOpcion == 2) {
                     printf("ID a buscar: "); scanf("%d", &id);
@@ -915,8 +1065,10 @@ int main(void) {
 
         case 7:
             do {
-                printf("\n--- REPORTES Y BITACORA ---\n");
-                printf("1. Ver Reporte de Cierre Diario\n2. Estimar Tiempo de Espera para un Título\n3. Ver Bitácora\n0. Volver\nOpcion: ");
+                printf("\n--- REPORTES, CONSULTAS Y BITACORA ---\n");
+                printf("1. Ver Reporte de Cierre Diario\n2. Estimar Tiempo de Espera para un Título\n3. Ver Bitácora\n");
+                printf("4. Clientes dentro de la tienda\n5. Salas más ocupadas\n6. Títulos agotados\n");
+                printf("7. Título más solicitado y con más espera\n8. Aforo de la tienda y las salas\n0. Volver\nOpcion: ");
                 scanf("%d", &subOpcion);
                 if (subOpcion == 1) {
                     generarReporteCierre(&miTienda);
@@ -930,6 +1082,24 @@ int main(void) {
                 }
                 else if (subOpcion == 3) {
                     listarBitacora(&miTienda);
+                }
+                else if (subOpcion == 4) {
+                    if (!mostrarClientesDentro(&miTienda)) printf("-> No hay clientes dentro de la tienda.\n");
+                }
+                else if (subOpcion == 5) {
+                    if (!mostrarSalasMasOcupadas(&miTienda)) printf("-> Todas las salas están vacías.\n");
+                }
+                else if (subOpcion == 6) {
+                    if (!mostrarTitulosAgotados(&miTienda)) printf("-> No hay títulos agotados.\n");
+                }
+                else if (subOpcion == 7) {
+                    printf("Más solicitado: ");
+                    if (!mostrarTituloMayor(&miTienda, 1)) printf("ninguno\n");
+                    printf("Con más espera: ");
+                    if (!mostrarTituloMayor(&miTienda, 0)) printf("ninguno\n");
+                }
+                else if (subOpcion == 8) {
+                    mostrarAforo(&miTienda);
                 }
             } while (subOpcion != 0);
             break;
